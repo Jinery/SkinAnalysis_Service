@@ -9,6 +9,7 @@ class FileManager:
         self.models_path = self.base_path / "models"
         self.users_files_path = self.base_path / "users_files"
         self.model_name = "SkinAnalysis_AI.keras"
+        self.database_name = "skin_analysis_BotAndAPI_data.db"
         self.setup_directories()
 
     def setup_directories(self):
@@ -62,6 +63,10 @@ class FileManager:
         if not model_path.exists():
             raise FileNotFoundError("Model not found")
         return model_path
+
+    def get_database_path(self) -> Path:
+        database_path = self.base_path / self.database_name
+        return database_path
 
     def get_file(self, file_path: str) -> bytes:
         path_to_file = Path(file_path)

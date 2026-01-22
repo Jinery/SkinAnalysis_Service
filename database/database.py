@@ -5,7 +5,9 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
-DATABASE_URL = "sqlite+aiosqlite:///skin_analysis_BotAndAPI_data.db"
+from files.file_manager import file_manager
+
+DATABASE_URL = f"sqlite+aiosqlite:///{file_manager.get_database_path()}"
 Base = declarative_base()
 
 engine = create_async_engine(DATABASE_URL, echo=True)

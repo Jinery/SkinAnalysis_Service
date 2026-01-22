@@ -1,5 +1,3 @@
-from typing import Any
-
 import cv2
 import numpy as np
 from pathlib import Path
@@ -19,65 +17,17 @@ class ImageProcessor:
         if self.img is None:
             raise ValueError(f"Could not read image at {image_path}")
 
-    def get_interestiong_crops(self, padding: int = 50, min_area: int = 300) -> list[CropData | Any]:
-        crops: list[CropData | Any] = []
-
-        gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-
-        thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
-
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        crops_dir = file_manager.ensure_crops_directory(self.user_id)
-
-        height_orig, width_orig = self.img.shape[:2]
-        total_area = height_orig * width_orig
-
-        for index, cnt in enumerate(contours):
-            area = cv2.contourArea(cnt)
-            if area < min_area or area > (total_area * 0.8):
-                continue
-
-            x, y, w, h = cv2.boundingRect(cnt)
-            aspect_ratio = float(w) / h
-            if aspect_ratio > 4.0 or aspect_ratio < 0.25:
-                continue
-
-            x, y, w, h = cv2.boundingRect(cnt)
-            side = max(w, h) + padding * 2
-            cx, cy = x + w // 2, y + h // 2
-
-            x1, y1 = max(0, cx - side // 2), max(0, cy - side // 2)
-            x2, y2 = min(width_orig, x1 + side), min(height_orig, y1 + side)
-
-            crop = self.img[y1:y2, x1:x2]
-            crop_name = f"crop_{index}_{self.user_id}.png"
-            crop_path = crops_dir / crop_name
-            cv2.imwrite(str(crop_path), crop)
-            crops.append(CropData(path=crop_path, x=x1, y=y1, w=(x2-x1), h=(y2-y1)))
-
-        return crops
-
-    def resize_for_model(self, image, target_size: tuple[int, int] = (224, 224)):
-        return cv2.resize(image, target_size, interpolation=cv2.INTER_LINEAR)
-
-    def has_skin_in_photo(self, threshold: float = 0.3):
-        ycrcb = cv2.cvtColor(self.img, cv2.COLOR_BGR2YCrCb)
-
-        lower = np.array([0, 133, 77], dtype="uint8")
-        upper = np.array([255, 173, 127], dtype="uint8")
-
-        mask = cv2.inRange(ycrcb, lower, upper)
-        skin_pixel_count = cv2.countNonZero(mask)
-        total_pixels = self.img.shape[0] * self.img.shape[1]
-        ratio = skin_pixel_count / total_pixels
-        return ratio > threshold
-
     def process_image(self):
-        if not self.has_skin_in_photo():
+
+        skin_mask = self.get_advanced_skin_mask()
+        skin_pixels = cv2.countNonZero(skin_mask)
+        total_pixels = self.img.shape[0] * self.img.shape[1]
+
+        if skin_pixels < (total_pixels * 0.01):
             raise SkinNotFound("Кожа не обнаружена на фото.")
 
         crops = self.get_interestiong_crops()
+
         if not crops:
             return ProcessImageResult(
                 status=ProcessImageStatus.CLEANED,
@@ -88,6 +38,91 @@ class ImageProcessor:
             status=ProcessImageStatus.SUCCESS,
             crops=crops
         )
+
+    def get_interestiong_crops(self, padding: int = 50) -> list:
+        crops = []
+        gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
+        blurred = cv2.GaussianBlur(gray, (7, 7), 0)
+
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (51, 51))
+        blackhat = cv2.morphologyEx(blurred, cv2.MORPH_BLACKHAT, kernel)
+
+        _, thresh = cv2.threshold(blackhat, 18, 255, cv2.THRESH_BINARY)
+
+        skin_mask = self.get_advanced_skin_mask()
+        skin_border_exclude = cv2.erode(skin_mask, np.ones((10, 10), np.uint8), iterations=1)
+        final_mask = cv2.bitwise_and(thresh, skin_border_exclude)
+
+        contours, _ = cv2.findContours(final_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        height_orig, width_orig = self.img.shape[:2]
+        total_area = height_orig * width_orig
+
+        for index, cnt in enumerate(contours):
+            area = cv2.contourArea(cnt)
+
+            if area < 150 or area > (total_area * 0.1):
+                continue
+
+            x, y, w, h = cv2.boundingRect(cnt)
+            roi_gray = gray[y:y + h, x:x + w]
+
+            object_brightness = np.mean(roi_gray[thresh[y:y + h, x:x + w] > 0])
+
+            if object_brightness > 120:
+                continue
+
+            hull = cv2.convexHull(cnt)
+            hull_area = cv2.contourArea(hull)
+            if hull_area == 0 or (area / hull_area) < 0.65:
+                continue
+
+            roi_color = self.img[y:y + h, x:x + w]
+
+            if self.is_lip_or_red_spot(roi_color):
+                continue
+
+            if self.is_too_dark_or_empty(roi_color):
+                continue
+
+            aspect_ratio = float(w) / h
+            if aspect_ratio > 2.2 or aspect_ratio < 0.45:
+                continue
+
+            side = max(w, h) + padding * 2
+            cx, cy = x + w // 2, y + h // 2
+            x1, y1 = max(0, cx - side // 2), max(0, cy - side // 2)
+            x2, y2 = min(width_orig, x1 + side), min(height_orig, y1 + side)
+
+            crop_path = file_manager.ensure_crops_directory(self.user_id) / f"crop_{index}.png"
+            cv2.imwrite(str(crop_path), self.img[y1:y2, x1:x2])
+
+            crops.append(CropData(path=crop_path, x=x1, y=y1, w=(x2 - x1), h=(y2 - y1)))
+
+        return crops
+
+    def get_advanced_skin_mask(self) -> np.ndarray:
+        ycrcb = cv2.cvtColor(self.img, cv2.COLOR_BGR2YCrCb)
+        mask = cv2.inRange(ycrcb, np.array([0, 133, 77]), np.array([255, 173, 127]))
+
+        kernel = np.ones((15, 15), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        return mask
+
+    def is_lip_or_red_spot(self, roi: np.ndarray) -> bool:
+        if roi.size == 0: return True
+        lab = cv2.cvtColor(roi, cv2.COLOR_BGR2LAB)
+        avg_a = np.mean(lab[:, :, 1])
+        return avg_a > 153
+
+    def is_too_dark_or_empty(self, roi: np.ndarray) -> bool:
+        if roi.size == 0: return True
+        gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        mean_val = np.mean(gray_roi)
+        return mean_val < 40
+
+    def resize_for_model(self, image, target_size: tuple[int, int] = (224, 224)):
+        return cv2.resize(image, target_size, interpolation=cv2.INTER_LINEAR)
 
     def annotate_image(self, analysis_results: list[AnalysisResult]):
         annotated_img = self.img.copy()

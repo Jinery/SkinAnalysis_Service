@@ -1,3 +1,5 @@
+starlette==0.52.1
+redis==7.1.0
 python-telegram-bot==22.5
 sqlalchemy==2.0.45
 aiosqlite==0.22.1

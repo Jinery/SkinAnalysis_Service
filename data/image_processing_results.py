@@ -43,7 +43,7 @@ class AnalysisResult:
     def get_label(self):
         return self.label
 
-class AnalyseServiceResult:
+class AnalyseServiceResult():
     def __init__(self, status: ProcessImageStatus, message: str = None, image_path: Path = None, analysis_results: list[AnalysisResult] = None):
         self.status = status
         self.message = message

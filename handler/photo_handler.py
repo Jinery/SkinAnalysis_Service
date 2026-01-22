@@ -9,6 +9,7 @@ from service.analysis_service import AnalysisService
 async def handle_user_photo(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if update.message.photo[-1] is not None:
+        file_manager.clear_user_temp(user_id)
         photo = await update.message.photo[-1].get_file()
         photo_bytes = await photo.download_as_bytearray()
 
