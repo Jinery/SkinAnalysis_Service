@@ -68,6 +68,9 @@ class FileManager:
         database_path = self.base_path / self.database_name
         return database_path
 
+    def get_temp_path(self) -> Path:
+        return self.temp_path
+
     def get_file(self, file_path: str) -> bytes:
         path_to_file = Path(file_path)
         if path_to_file.exists():

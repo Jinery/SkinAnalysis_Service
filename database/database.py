@@ -1,5 +1,7 @@
 import uuid
+from typing import Optional
 
+from pydantic import BaseModel
 from sqlalchemy import Column, Integer, BigInteger, ForeignKey, String, Boolean, DateTime, func
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
@@ -48,6 +50,18 @@ class Device(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     connection = relationship("Connection", back_populates="devices")
+
+class DeviceRegisterRequest(BaseModel):
+    device_uid: str
+    name: Optional[str] = None
+    platform: Optional[str] = None
+    model: Optional[str] = None
+    os_version: Optional[str] = None
+
+class DeviceRegisterResponse(BaseModel):
+    status: str
+    device_id: Optional[int] = None
+    message: Optional[str] = None
 
 async def init_db():
     async with engine.begin() as conn:

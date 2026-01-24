@@ -1,14 +1,26 @@
+from typing import Optional, Tuple
+
 from sqlalchemy import select, update, and_, func
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import selectinload
 
+from data.enums import APIStatus
 from database.database import get_db, Connection, Device
 
 
 class DatabaseWorker:
     @staticmethod
-    async def create_connection(user_id: int, name: str, max_devices: int = 3):
+    async def create_connection(user_id: int, name: str, max_devices: int = 3) -> Tuple[Optional[Connection], APIStatus]:
         async for db in get_db():
             try:
+                existing_stmt = select(Connection).where(
+                    Connection.user_id == user_id,
+                    Connection.name == name
+                )
+                existing_result = await db.execute(existing_stmt)
+                if existing_result.scalar_one_or_none():
+                    return None, APIStatus.CONFLICT
+
                 new_connection = Connection(
                     user_id=user_id,
                     name=name,
@@ -17,13 +29,48 @@ class DatabaseWorker:
                 db.add(new_connection)
                 await db.commit()
                 await db.refresh(new_connection)
-                return new_connection
+                return new_connection, APIStatus.SUCCESS
             except SQLAlchemyError as sqlex:
                 await db.rollback()
                 raise sqlex
 
     @staticmethod
-    async def add_device(connection_id: str, device_info: dict):
+    async def remove_connection(user_id: int, name: str) -> APIStatus:
+        async for db in get_db():
+            try:
+                stmt = select(Connection).where(
+                    Connection.user_id == user_id,
+                    Connection.name == name
+                )
+                result = await db.execute(stmt)
+                connection = result.scalars().first()
+                if connection is None:
+                    return APIStatus.NOT_FOUND
+                await db.delete(connection)
+                await db.commit()
+                return APIStatus.SUCCESS
+            except SQLAlchemyError as sqlex:
+                await db.rollback()
+                raise sqlex
+
+    @staticmethod
+    async def get_user_connections(user_id: int):
+        async for db in get_db():
+            try:
+                stmt = select(Connection).where(
+                    Connection.user_id == user_id
+                ).options(
+                    selectinload(Connection.devices)
+                )
+                result = await db.execute(stmt)
+                connections = result.scalars().all()
+                return connections
+            except SQLAlchemyError as sqlex:
+                await db.rollback()
+                raise sqlex
+
+    @staticmethod
+    async def add_device(connection_id: str, device_info: dict) -> Tuple[Optional[Device], APIStatus]:
         async for db in get_db():
             try:
                 stmt = select(Connection).where(
@@ -34,15 +81,26 @@ class DatabaseWorker:
                 connection = result.scalar_one_or_none()
 
                 if not connection:
-                    return None, "Connection not found"
+                    return None, APIStatus.NOT_FOUND
 
-                device_count = len([device for device in connection.devices if device.is_active])
-                if device_count >= connection.max_devices:
-                    return None, "Device limit reached"
-
-                existing_device = next(
-                    (device for device in connection.devices if device.device_uid == device_info['device_uid']),None
+                active_count_stmt = select(func.count(Device.id)).where(
+                    Device.connection_id == connection.id,
+                    Device.is_active == True
                 )
+                active_count_result = await db.execute(active_count_stmt)
+                active_count = active_count_result.scalar() or 0
+
+                if active_count >= connection.max_devices:
+                    return None, APIStatus.LIMIT_EXCEEDED
+
+                device_uid = device_info['device_uid']
+
+                device_stmt = select(Device).where(
+                    Device.connection_id == connection.id,
+                    Device.device_uid == device_uid
+                )
+                device_result = await db.execute(device_stmt)
+                existing_device = device_result.scalar_one_or_none()
 
                 if existing_device:
                     existing_device.name = device_info.get('name')
@@ -50,7 +108,12 @@ class DatabaseWorker:
                     existing_device.model = device_info.get('model')
                     existing_device.os_version = device_info.get('os_version')
                     existing_device.is_active = True
-                    device = existing_device
+                    existing_device.last_seen = func.now()
+
+                    await db.commit()
+                    await db.refresh(existing_device)
+                    return existing_device, APIStatus.SUCCESS
+
                 else:
                     device = Device(
                         connection_id=connection.id,
@@ -59,76 +122,70 @@ class DatabaseWorker:
                     db.add(device)
                     await db.commit()
                     await db.refresh(device)
-                    return device, "Success"
+                    return device, APIStatus.SUCCESS
+
             except SQLAlchemyError as sqlex:
                 await db.rollback()
                 raise sqlex
 
     @staticmethod
-    async def disconnect_device(device_uid: str, connection_id: str = None):
+    async def disconnect_device(device_uid: str, connection_id: str = None) -> APIStatus:
         async for db in get_db():
             try:
-                conditions = [Device.device_uid == device_uid, Device.is_active == True]
-                if connection_id:
-                    stmt = select(Connection.id).where(Connection.connection_id == connection_id)
-                    result = await db.execute(stmt)
-                    conn_id = result.scalar_one_or_none()
-                    if conn_id:
-                        conditions.append(Device.connection_id == conn_id)
+                if not connection_id:
+                    return APIStatus.UNAUTHORIZED
 
-                stmt = update(Device).where(and_(*conditions)).values(
-                    is_active=False,
-                    last_seen=func.now()
+                stmt = select(Device).join(Connection).where(
+                    Device.device_uid == device_uid,
+                    Device.is_active == True,
+                    Connection.connection_id == connection_id,
+                    Connection.is_active == True
                 )
-                await db.execute(stmt)
+                result = await db.execute(stmt)
+                device = result.scalar_one_or_none()
+
+                if not device:
+                    return APIStatus.NOT_FOUND
+
+                device.is_active = False
+                device.last_seen = func.now()
                 await db.commit()
+                return APIStatus.SUCCESS
             except SQLAlchemyError as sqlex:
                 await db.rollback()
                 raise sqlex
 
     @staticmethod
-    async def get_active_devices(connection_id: str):
+    async def get_active_devices(connection_id: str) -> Tuple[Optional[list[Device]], APIStatus]:
         async for db in get_db():
+            if not connection_id:
+                return None, APIStatus.UNAUTHORIZED,
             try:
                 stmt = select(Device).join(Connection).where(
                     Connection.connection_id == connection_id,
-                    Device.is_active == True
+                    Device.is_active == True,
+                    Connection.is_active == True
+                ).options(
+                    selectinload(Device.connections)
                 )
                 result = await db.execute(stmt)
-                return result.scalars().all()
+                devices = result.scalars().all()
+                return devices, APIStatus.SUCCESS
             except SQLAlchemyError as sqlex:
                 await db.rollback()
                 raise sqlex
 
     @staticmethod
-    async def get_connection_stats(connection_id: str):
+    async def get_connection_by_id(connection_id: str) -> Optional[Connection]:
         async for db in get_db():
             try:
-                stmt = select(Connection).where(Connection.connection_id == connection_id)
+                stmt = select(Connection).where(
+                    Connection.connection_id == connection_id
+                ).options(
+                    selectinload(Connection.devices)
+                )
                 result = await db.execute(stmt)
-                connection = result.scalar_one_or_none()
-
-                if not connection:
-                    return None
-
-                active_devices = [d for d in connection.devices if d.is_active]
-
-                return {
-                    'connection_id': connection.connection_id,
-                    'name': connection.name,
-                    'max_devices': connection.max_devices,
-                    'active_devices': len(active_devices),
-                    'devices': [
-                        {
-                            'id': device.id,
-                            'name': device.name,
-                            'platform': device.platform,
-                            'model': device.model,
-                            'last_seen': device.last_seen
-                        }
-                        for device in active_devices
-                    ]
-                }
+                return result.scalar_one_or_none()
             except SQLAlchemyError as sqlex:
                 await db.rollback()
                 raise sqlex

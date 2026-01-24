@@ -6,6 +6,15 @@ class Status(str, Enum):
     ERROR = "error"
 
 
+class APIStatus(str, Enum):
+    SUCCESS = Status.SUCCESS,
+    ERROR = Status.ERROR,
+    UNAUTHORIZED = "unauthorized"
+    NOT_FOUND = "not_found",
+    CONFLICT = "conflict",
+    LIMIT_EXCEEDED = "limit_exceeded"
+
+
 class ProcessImageStatus(str, Enum):
     SUCCESS = Status.SUCCESS,
     ERROR = Status.ERROR
