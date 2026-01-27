@@ -4,7 +4,8 @@ from starlette.staticfiles import StaticFiles
 from datetime import datetime
 import asyncio
 
-from data.enums import APIStatus
+from api.dependencies import get_translator
+from data.enums import APIStatus, Platform
 from data.schemas import AnalysisResponse, AnalysisItemSchema, CropBoxSchema, TaskResponse, TaskStatus
 from database.database import DeviceRegisterResponse, DeviceRegisterRequest, Connection
 from database.database_worker import DatabaseWorker
@@ -20,17 +21,32 @@ app = FastAPI(
 )
 
 
-async def verify_token(connection_id: str = Header(...), device_uid: str = Header(..., alias="X-Device-ID")):
+async def verify_token(
+        connection_id: str = Header(...),
+        device_uid: str = Header(..., alias="X-Device-ID"),
+        lang: str = Header("en", alias="Accept-Language")
+):
+    translator = get_translator()
     stats = await DatabaseWorker.get_connection_by_id(connection_id)
+
     if not stats:
-        raise HTTPException(status_code=403, detail="Invalid or inactive Connection ID")
+        raise HTTPException(
+            status_code=403,
+            detail=translator.translate("errors.auth.invalid_connection_id", Platform.API, lang)
+        )
 
     if not stats.is_active:
-        raise HTTPException(status_code=403, detail="Connection is not active")
+        raise HTTPException(
+            status_code=403,
+            detail=translator.translate("errors.auth.connection_not_active", Platform.API, lang)
+        )
 
     active_status, api_status = await DatabaseWorker.get_device_active_status(connection_id, device_uid)
     if not active_status:
-        raise HTTPException(status_code=403, detail="Device is not active")
+        raise HTTPException(
+            status_code=403,
+            detail=translator.translate("errors.auth.device_not_active", Platform.API, lang)
+        )
 
     return stats
 
@@ -41,15 +57,19 @@ async def analyze_image(
         connection_id: str = Header(...),
         device_uid: str = Header(..., alias="X-Device-ID"),
         file: UploadFile = File(...),
-        connection: Connection = Depends(verify_token)
+        connection: Connection = Depends(verify_token),
+        lang: str = Header("en", alias="Accept-Language")
 ):
+    translator = get_translator()
     user_id = connection.user_id
 
     if not file.content_type.startswith('image/'):
-        raise HTTPException(status_code=400, detail="File must be an image")
+        raise HTTPException(
+            status_code=400,
+            detail=translator.translate("errors.validation.file_not_image", Platform.API, lang)
+        )
 
     task_id = await task_manager.create_task(user_id)
-
     content = await file.read()
 
     background_tasks.add_task(
@@ -57,20 +77,21 @@ async def analyze_image(
         task_id=task_id,
         user_id=user_id,
         content=content,
-        filename=file.filename
+        filename=file.filename,
+        lang=lang
     )
 
     await task_manager.update_task(
         task_id=task_id,
         status=TaskStatus.PROCESSING,
-        message="Image uploaded, starting analysis",
+        message=translator.translate("status.upload.image_uploaded", Platform.API, lang),
         progress=10
     )
 
     return TaskResponse(
         task_id=task_id,
         status=TaskStatus.PROCESSING,
-        message="Analysis started",
+        message=translator.translate("success.tasks.analysis_started", Platform.API, lang),
         created_at=datetime.now(),
         result_url=f"/tasks/{task_id}/result"
     )
@@ -81,11 +102,16 @@ async def get_task_status(
         task_id: str,
         connection_id: str = Header(...),
         device_uid: str = Header(..., alias="X-Device-ID"),
-        connection: Connection = Depends(verify_token)
+        connection: Connection = Depends(verify_token),
+        lang: str = Header("en", alias="Accept-Language")
 ):
+    translator = get_translator()
     task = await task_manager.get_task(task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(
+            status_code=404,
+            detail=translator.translate("errors.tasks.task_not_found", Platform.API, lang)
+        )
 
     return TaskResponse(
         task_id=task_id,
@@ -103,21 +129,29 @@ async def get_task_result(
         task_id: str,
         connection_id: str = Header(...),
         device_uid: str = Header(..., alias="X-Device-ID"),
-        connection: Connection = Depends(verify_token)
+        connection: Connection = Depends(verify_token),
+        lang: str = Header("en", alias="Accept-Language")
 ):
+    translator = get_translator()
     task = await task_manager.get_task(task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(
+            status_code=404,
+            detail=translator.translate("errors.tasks.task_not_found", Platform.API, lang)
+        )
 
     if task['status'] != TaskStatus.COMPLETED:
         raise HTTPException(
             status_code=400,
-            detail=f"Task is not completed. Current status: {task['status']}"
+            detail=translator.translate("errors.tasks.working_task_status", Platform.API, lang, status=task['status'])
         )
 
     result = task.get('result')
     if not result:
-        raise HTTPException(status_code=404, detail="Result not found")
+        raise HTTPException(
+            status_code=404,
+            detail=translator.translate("errors.resources.result_not_found", Platform.API, lang)
+        )
 
     return result
 
@@ -128,11 +162,16 @@ async def get_result_image(
         image_name: str,
         connection_id: str = Header(...),
         device_uid: str = Header(..., alias="X-Device-ID"),
-        connection: Connection = Depends(verify_token)
+        connection: Connection = Depends(verify_token),
+        lang: str = Header("en", alias="Accept-Language")
 ):
+    translator = get_translator()
     file_path = file_manager.get_user_folder(user_id) / image_name
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Image not found")
+        raise HTTPException(
+            status_code=404,
+            detail=translator.translate("errors.resources.image_not_found", Platform.API, lang)
+        )
     return FileResponse(file_path)
 
 
@@ -141,11 +180,13 @@ async def process_image_task(
         user_id: int,
         content: bytes,
         filename: str,
+        lang: str = "en"
 ):
+    translator = get_translator()
     try:
         await task_manager.update_task(
             task_id=task_id,
-            message="Saving image file",
+            message=translator.translate("status.upload.saving_image", Platform.API, lang),
             progress=20
         )
 
@@ -153,7 +194,7 @@ async def process_image_task(
 
         await task_manager.update_task(
             task_id=task_id,
-            message="Processing image with AI model",
+            message=translator.translate("status.processing.processing_ai", Platform.API, lang),
             progress=40
         )
 
@@ -161,7 +202,7 @@ async def process_image_task(
 
         await task_manager.update_task(
             task_id=task_id,
-            message="Generating annotated image",
+            message=translator.translate("status.processing.generating_result", Platform.API, lang),
             progress=80
         )
 
@@ -186,7 +227,7 @@ async def process_image_task(
         await task_manager.update_task(
             task_id=task_id,
             status=TaskStatus.COMPLETED,
-            message="Analysis completed successfully",
+            message=translator.translate("success.tasks.analysis_completed", Platform.API, lang),
             progress=100,
             result=analysis_response.dict()
         )
@@ -198,13 +239,20 @@ async def process_image_task(
         await task_manager.update_task(
             task_id=task_id,
             status=TaskStatus.FAILED,
-            message=f"Analysis failed: {str(e)}",
+            message=translator.translate("errors.tasks.task_failed", Platform.API, lang, task_id=task_id, error=str(e)),
             progress=0
         )
 
+
 @app.post("/auth/register-device", response_model=DeviceRegisterResponse)
-async def register_device(device_info: DeviceRegisterRequest, connection_id: str = Header(...),
-                          device_uid: str = Header(..., alias="X-Device-ID"), connection: Connection = Depends(verify_token)):
+async def register_device(
+        device_info: DeviceRegisterRequest,
+        connection_id: str = Header(...),
+        device_uid: str = Header(..., alias="X-Device-ID"),
+        connection: Connection = Depends(verify_token),
+        lang: str = Header("en", alias="Accept-Language")
+):
+    translator = get_translator()
     try:
         user_id = connection.user_id
         device, status = await DatabaseWorker.add_device(connection_id, device_info.model_dump())
@@ -223,44 +271,60 @@ async def register_device(device_info: DeviceRegisterRequest, connection_id: str
                 return {
                     "status": "success",
                     "device_id": device.id if device else None,
-                    "message": "Device registered successfully"
+                    "message": translator.translate("success.auth.device_registered", Platform.API, lang)
                 }
             case APIStatus.NOT_FOUND:
                 raise HTTPException(
                     status_code=404,
-                    detail=f"Connection '{connection_id}' not found"
+                    detail=translator.translate("errors.auth.connection_not_found", Platform.API, lang,
+                                                connection_id=connection_id)
                 )
             case APIStatus.LIMIT_EXCEEDED:
                 raise HTTPException(
                     status_code=403,
-                    detail="Device limit reached for this connection"
+                    detail=translator.translate("errors.auth.device_limit", Platform.API, lang)
                 )
             case _:
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Unknown error: {status.value}"
+                    detail=translator.translate("errors.server.unknown_error", Platform.API, lang, error=status.value)
                 )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=translator.translate("errors.server.unknown_error", Platform.API, lang, error=str(e))
+        )
 
 
-
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(cleanup_tasks_periodically())
-
-
-async def cleanup_tasks_periodically():
-    while True:
-        await asyncio.sleep(3600)
-        await task_manager.cleanup_old_tasks()
-
-@app.get("/")
-async def root():
+@app.get("/auth/check")
+async def check(
+        connection_id: str = Header(...),
+        device_uid: str = Header(..., alias="X-Device-ID"),
+        connection: Connection = Depends(verify_token),
+        lang: str = Header("en", alias="Accept-Language")
+):
+    translator = get_translator()
     return {
-        "message": "Skin Analysis API",
-        "status": "running",
+        "status": "success",
+        "message": translator.translate("success.auth.secure_endpoint_available", Platform.API, lang)
     }
 
 
-app.mount("/results", StaticFiles(directory=str(file_manager.get_temp_path())), name="results")
+@app.get("/")
+async def root(lang: str = Header("en", alias="Accept-Language")):
+    translator = get_translator()
+    message = translator.translate(
+        "success.api_running",
+        Platform.API,
+        lang
+    )
+
+    return {
+        "message": "Skin Analysis API",
+        "status": message,
+        "debug": {
+            "lang": lang
+        }
+    }

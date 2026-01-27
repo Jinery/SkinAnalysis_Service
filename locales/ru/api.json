@@ -1,0 +1,47 @@
+{
+  "errors": {
+    "auth": {
+      "invalid_connection_id": "Неверный или неактивный ID подключения",
+      "connection_not_active": "Подключение не активно",
+      "device_not_active": "Устройство не активно",
+      "connection_not_found": "Подключение '{connection_id}' не найдено",
+      "device_limit": "Достигнут лимит устройств для этого подключения"
+    },
+    "validation": {
+      "file_not_image": "Файл должен быть изображением"
+    },
+    "tasks": {
+      "task_not_found": "Задача не найдена",
+      "working_task_status": "Задача не завершена. Текущий статус: {status}",
+      "task_failed": "Задача {task_id} завершилась с ошибкой: {error}"
+    },
+    "resources": {
+      "result_not_found": "Результат не найден",
+      "image_not_found": "Изображение не найдено"
+    },
+    "server": {
+      "unknown_error": "Неизвестная ошибка: {error}"
+    }
+  },
+  "success": {
+    "auth": {
+      "device_registered": "Устройство успешно зарегистрировано",
+      "secure_endpoint_available": "Защищённая точка доступа доступна"
+    },
+    "api_running": "API работает.",
+    "tasks": {
+      "analysis_started": "Анализ начат",
+      "analysis_completed": "Анализ успешно завершён"
+    }
+  },
+  "status": {
+    "upload": {
+      "image_uploaded": "Изображение загружено, запуск анализа",
+      "saving_image": "Сохранение файла изображения"
+    },
+    "processing": {
+      "processing_ai": "Обработка изображения ИИ-моделью",
+      "generating_result": "Создание аннотированного изображения"
+    }
+  }
+}

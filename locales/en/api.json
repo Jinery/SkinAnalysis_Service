@@ -1,0 +1,47 @@
+{
+  "errors": {
+    "auth": {
+      "invalid_connection_id": "Invalid or inactive Connection ID",
+      "connection_not_active": "Connection is not active",
+      "device_not_active": "Device is not active",
+      "connection_not_found": "Connection '{connection_id}' not found",
+      "device_limit": "Device limit reached for this connection"
+    },
+    "validation": {
+      "file_not_image": "File must be an image"
+    },
+    "tasks": {
+      "task_not_found": "Task not found",
+      "working_task_status": "Task is not completed. Current status: {status}",
+      "task_failed": "Task {task_id} failed: {error}"
+    },
+    "resources": {
+      "result_not_found": "Result not found",
+      "image_not_found": "Image not found"
+    },
+    "server": {
+      "unknown_error": "Unknown error: {error}"
+    }
+  },
+  "success": {
+    "auth": {
+      "device_registered": "Device registered successfully",
+      "secure_endpoint_available": "Secure endpoint available"
+    },
+    "api_running": "API running",
+    "tasks": {
+      "analysis_started": "Analysis started",
+      "analysis_completed": "Analysis completed successfully"
+    }
+  },
+  "status": {
+    "upload": {
+      "image_uploaded": "Image uploaded, starting analysis",
+      "saving_image": "Saving image file"
+    },
+    "processing": {
+      "processing_ai": "Processing image with AI model",
+      "generating_result": "Generating annotated image"
+    }
+  }
+}

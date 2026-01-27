@@ -25,3 +25,7 @@ class SkinDetectType(str, Enum):
     PROBLEM = "problem",
     NEVUS = "nevus",
     HEALTHY = "healthy"
+
+class Platform(str, Enum):
+    API = "api",
+    TELEGRAM = "telegram"
