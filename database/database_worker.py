@@ -156,6 +156,20 @@ class DatabaseWorker:
                 raise sqlex
 
     @staticmethod
+    async def get_device_active_status(connection_id: str, device_uid: str) -> Tuple[bool, APIStatus]:
+        async for db in get_db():
+            stmt = select(Device).join(Connection).where(
+                Connection.connection_id == connection_id,
+                Device.device_uid == device_uid,
+            ).options(
+                selectinload(Device.connection)
+            )
+            result = await db.execute(stmt)
+            device = result.scalar_one_or_none()
+            if not device: return True, APIStatus.NOT_FOUND
+            return device.is_active, APIStatus.SUCCESS
+
+    @staticmethod
     async def get_active_devices(connection_id: str) -> Tuple[Optional[list[Device]], APIStatus]:
         async for db in get_db():
             if not connection_id:
@@ -166,7 +180,7 @@ class DatabaseWorker:
                     Device.is_active == True,
                     Connection.is_active == True
                 ).options(
-                    selectinload(Device.connections)
+                    selectinload(Device.connection)
                 )
                 result = await db.execute(stmt)
                 devices = result.scalars().all()

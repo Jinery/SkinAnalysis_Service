@@ -2,6 +2,7 @@ from telegram import Update
 from telegram.ext import CallbackContext
 
 from handler.auth_handler import handle_disconnect_device, handle_confirm_disconnect, handle_cancel_disconnect
+from storage.callback_storage import callback_storage
 
 
 async def handle_callback(update: Update, context: CallbackContext):
@@ -9,6 +10,14 @@ async def handle_callback(update: Update, context: CallbackContext):
     await query.answer()
 
     data = query.data
+
+    if data.startswith(callback_storage.get_prefix()):
+        stored_data = await callback_storage.get(data)
+        if not stored_data:
+            await query.edit_message_text("Ссылка устарела")
+            return
+        data = stored_data
+        print(data)
 
     patrs = data.split(":")
     action = patrs[0]

@@ -35,26 +35,33 @@ class TaskManager:
 
     async def update_task(self, task_id: str, status: Optional[TaskStatus] = None, message: Optional[str] = None,
                           progress: Optional[int] = None, result: Optional[Dict] = None) -> bool:
-        if task_id not in self.redis:
+        key = f"task:{task_id}"
+        raw_data = await self.redis.get(key)
+
+        if not raw_data:
             return False
 
-        task = self.redis.getex(f"task:{task_id}")
+        task_data = json.loads(raw_data)
 
         if status:
-            task.status = status
+            task_data['status'] = status
         if message:
-            task.message = message
+            task_data['message'] = message
         if progress is not None:
-            task.progress = progress
+            task_data['progress'] = progress
         if result:
-            task.result = result
+            task_data['result'] = result
 
-        task.updated_at = datetime.now().isoformat()
-        await self.redis.set(f"task:{task_id}", json.dumps(task))
+        task_data['updated_at'] = datetime.now().isoformat()
+
+        await self.redis.setex(key, 3600, json.dumps(task_data))
         return True
 
     async def get_task(self, task_id: str) -> Optional[Dict]:
-        return await self.redis.get(f"task:{task_id}")
+        raw_data = await self.redis.get(f"task:{task_id}")
+        if not raw_data:
+            return None
+        return json.loads(raw_data)
 
     async def cleanup_old_tasks(self, hours_old: int = 24):
         cutoff = datetime.now().timestamp() - (hours_old * 3600)

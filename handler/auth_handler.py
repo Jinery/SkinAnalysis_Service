@@ -1,6 +1,8 @@
 import os
+import secrets
 from functools import lru_cache
 
+import redis
 from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from telegram.constants import ParseMode
@@ -9,6 +11,7 @@ from telegram.ext import Application
 from data.enums import APIStatus
 from database.database import Device
 from database.database_worker import DatabaseWorker
+from storage.callback_storage import callback_storage
 
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -42,10 +45,13 @@ async def notify_device_connection(
             f"❗️ Если это не вы, отключите устройство!"
         )
 
+        callback_data = await callback_storage.store(f"disconnect_device:{device_uid}:{connection_id}")
+        print(callback_data)
+
         keyboard = [[
             InlineKeyboardButton(
                 "Отключить устройство",
-                callback_data=f"disconnect_device:{device_uid}:{connection_id}"
+                callback_data=callback_data,
             )
         ]]
 
@@ -70,9 +76,11 @@ async def handle_disconnect_device(query: CallbackQuery, parts: list[str]):
     device_uid = parts[0]
     connection_id = parts[1]
 
+    first_callback_data = await callback_storage.store(f"confirm_disconnect:{device_uid}:{connection_id}")
+
     keyboard = [
         [
-            InlineKeyboardButton("✅ Да, отключить", callback_data=f"confirm_disconnect:{device_uid}:{connection_id}"),
+            InlineKeyboardButton("✅ Да, отключить", callback_data=first_callback_data),
             InlineKeyboardButton("❌ Нет, отмена", callback_data="cancel_disconnect")
         ]
     ]

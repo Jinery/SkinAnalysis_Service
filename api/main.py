@@ -1,5 +1,4 @@
 from fastapi import FastAPI, Header, File, UploadFile, Depends, HTTPException, BackgroundTasks
-from fastapi.testclient import TestClient
 from starlette.responses import FileResponse
 from starlette.staticfiles import StaticFiles
 from datetime import datetime
@@ -21,10 +20,18 @@ app = FastAPI(
 )
 
 
-async def verify_token(connection_id: str = Header(...)):
+async def verify_token(connection_id: str = Header(...), device_uid: str = Header(..., alias="X-Device-ID")):
     stats = await DatabaseWorker.get_connection_by_id(connection_id)
     if not stats:
         raise HTTPException(status_code=403, detail="Invalid or inactive Connection ID")
+
+    if not stats.is_active:
+        raise HTTPException(status_code=403, detail="Connection is not active")
+
+    active_status, api_status = await DatabaseWorker.get_device_active_status(connection_id, device_uid)
+    if not active_status:
+        raise HTTPException(status_code=403, detail="Device is not active")
+
     return stats
 
 
@@ -32,6 +39,7 @@ async def verify_token(connection_id: str = Header(...)):
 async def analyze_image(
         background_tasks: BackgroundTasks,
         connection_id: str = Header(...),
+        device_uid: str = Header(..., alias="X-Device-ID"),
         file: UploadFile = File(...),
         connection: Connection = Depends(verify_token)
 ):
@@ -40,7 +48,7 @@ async def analyze_image(
     if not file.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="File must be an image")
 
-    task_id = task_manager.create_task(user_id)
+    task_id = await task_manager.create_task(user_id)
 
     content = await file.read()
 
@@ -69,7 +77,12 @@ async def analyze_image(
 
 
 @app.get("/tasks/{task_id}/status", response_model=TaskResponse)
-async def get_task_status(task_id: str):
+async def get_task_status(
+        task_id: str,
+        connection_id: str = Header(...),
+        device_uid: str = Header(..., alias="X-Device-ID"),
+        connection: Connection = Depends(verify_token)
+):
     task = await task_manager.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -89,6 +102,7 @@ async def get_task_status(task_id: str):
 async def get_task_result(
         task_id: str,
         connection_id: str = Header(...),
+        device_uid: str = Header(..., alias="X-Device-ID"),
         connection: Connection = Depends(verify_token)
 ):
     task = await task_manager.get_task(task_id)
@@ -113,6 +127,7 @@ async def get_result_image(
         user_id: str,
         image_name: str,
         connection_id: str = Header(...),
+        device_uid: str = Header(..., alias="X-Device-ID"),
         connection: Connection = Depends(verify_token)
 ):
     file_path = file_manager.get_user_folder(user_id) / image_name
@@ -126,8 +141,6 @@ async def process_image_task(
         user_id: int,
         content: bytes,
         filename: str,
-        connection_id: str = Header(...),
-        connection: Connection = Depends(verify_token)
 ):
     try:
         await task_manager.update_task(
@@ -190,7 +203,8 @@ async def process_image_task(
         )
 
 @app.post("/auth/register-device", response_model=DeviceRegisterResponse)
-async def register_device(device_info: DeviceRegisterRequest, connection_id: str = Header(...), connection: Connection = Depends(verify_token)):
+async def register_device(device_info: DeviceRegisterRequest, connection_id: str = Header(...),
+                          device_uid: str = Header(..., alias="X-Device-ID"), connection: Connection = Depends(verify_token)):
     try:
         user_id = connection.user_id
         device, status = await DatabaseWorker.add_device(connection_id, device_info.model_dump())
@@ -241,7 +255,7 @@ async def cleanup_tasks_periodically():
         await asyncio.sleep(3600)
         await task_manager.cleanup_old_tasks()
 
-app.get("/")
+@app.get("/")
 async def root():
     return {
         "message": "Skin Analysis API",
