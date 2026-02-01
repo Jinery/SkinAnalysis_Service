@@ -19,7 +19,7 @@ class AnalysisService:
             if process_result.status == ProcessImageStatus.CLEANED:
                 return AnalyseServiceResult(
                     status=process_result.status,
-                    message=process_result.message,
+                    message_key=process_result.message_key,
                 )
 
             analysis_results: list[AnalysisResult] = []
@@ -49,17 +49,17 @@ class AnalysisService:
         except SkinNotFound as se:
             return AnalyseServiceResult(
                 status=ProcessImageStatus.ERROR,
-                message=str(se),
+                message_key=str(se),
             )
         except ValueError as ve:
             print(ve)
             return AnalyseServiceResult(
                 status=ProcessImageStatus.ERROR,
-                message="Не удалось обработать ваше фото."
+                message_key="success.analysis.cleaned"
             )
         except Exception as e:
             print(e)
             return AnalyseServiceResult(
                 status=ProcessImageStatus.ERROR,
-                message="Непредвиденная ошибка при обработке."
+                message_key="errors.analysis.unexpected_error"
             )

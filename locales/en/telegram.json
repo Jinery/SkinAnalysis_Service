@@ -1,0 +1,80 @@
+{
+  "success": {
+    "auth": {
+      "device_registered": "🔔 <b>New Device Connection!</b>\n\n📱 <b>Device:</b> {device_name}\n🖥️ <b>Platform:</b> {device_platform}\n📱 <b>Model:</b> {device_model}\n🔢 <b>OS Version:</b> {device_os_version}\n🆔 <b>UID:</b> <code>{device_uid}</code>\n\n❗️ If this wasn't you, please disconnect the device!",
+      "not_specified": "Not specified",
+      "no_name": "No name",
+      "device_disconnected": "✅ <b>Device disconnected!</b>\n\nIt can no longer connect to this account.",
+      "device_disconnect_canceled": "\uD83D\uDEAB <b>Disconnection canceled</b>\n\nThe device remains active."
+    },
+    "connections": {
+      "created": "✅ <b>NEW CONNECTION CREATED!</b>\n\n📛 <b>Name:</b> <code>{connection_name}</code>\n🔢 <b>Connection ID:</b> <code>{connection_id}</code>\n📱 <b>Max devices:</b> {max_devices}\n\nID is case-sensitive!\nDo not share this code with third parties\n\nSave this message for quick access to ID!",
+      "removed": "✅ Connection with name <b>{connection_name}</b> successfully deleted!"
+    },
+    "analysis": {
+      "cleaned": "The skin is clean, there are no suspicious objects."
+    }
+  },
+  "callbacks": {
+    "auth": {
+      "disconnect_device": "Disconnect device",
+      "confirm_disconnect_device": "Yes, disconnect",
+      "reject_disconnect_device": "No, cancel"
+    }
+  },
+  "attentions": {
+    "auth": {
+      "disconnect_device": "⚠ <b>Disconnection Confirmation</b>\n\nAre you sure you want to disconnect the device?\n<code>{device_uid</code>\n\nAfter disconnecting, the device will not be able to connect."
+    },
+    "connections": {
+      "max_limit": "Maximum value set to 10 devices for security.",
+      "no_connections": "📭 <b>You don't have any connections yet.</b>"
+    },
+    "analysis": {
+      "skin_not_found": "Skin not found in photo."
+    }
+  },
+  "info": {
+    "analysis": {
+      "checking": "🔍 Analyzing photo...",
+      "completed": "✅ Analysis completed."
+    }
+  },
+  "errors": {
+    "auth": {
+      "device_not_found": "❌ <b>Device not found</b>\n\nIt may have already been disconnected.",
+      "disconnect_error": "Failed to disconnect the device."
+    },
+    "connections": {
+      "no_name": "❌ Connection name not specified!",
+      "not_found": "❗️ Connection with this name not found!",
+      "not_number": "❌ <b>Error:</b> Maximum number of devices must be a number!",
+      "not_positive": "❌ Maximum number of devices must be a positive number!",
+      "already_exists": "⚠️ Connection with name <b>{connection_name}</b> already exists",
+      "general": "❌ Failed to create connection.",
+      "try_later": "❌ Failed to create connection. Try again later.",
+      "input": "❌ Input error: {error}",
+      "remove_error": "❌ Error deleting connection.",
+      "error_getting": "❌ Error getting your connections"
+    },
+    "analysis": {
+      "unexpected_error": "An unexpected error occurred while processing.",
+      "send_failed": "😔 Unfortunately, failed to send photo."
+    },
+    "callbacks": {
+      "stored_data": {
+        "link_expired": "🔗 Link expired"
+      }
+    }
+  },
+  "commands": {
+    "start": "\"Hello, <b>{first_name}{last_name}</b>👋\n\nSend me a photo of the suspicious area. I will analyze it and try to identify the presence of pathology.",
+    "help": "❔ <b>How to use the bot?</b> ❔\nJust send a photo of the suspicious area, and I will find all the moles (if they are clearly visible) and try to determine the presence of pathology.\n\n❓ <b>How to take a photo for accurate analysis</b> ❓\n<b>Lighting:</b> Use soft natural light. Avoid direct flash (it creates white highlights) and harsh shadows.\n<b>Distance:</b> Take the photo from 10-15 cm away. The mole should be in the center of the frame but not occupy it completely (I need to see some healthy skin around for comparison).\n<b>Cleanliness:</b> The skin should be clean, without plasters, markers, or bandages nearby.",
+    "new_connection": "⚠️ <b>To create a new connection use:</b>\n<code>/newconnection connection_name [max_devices]</code>\n\n📝 <b>Example:</b>\n<code>/newconnection My_First_Connection 3</code>",
+    "remove_connection": "<b>Connection name not specified.</b>\n\n<b>To remove a connection use:</b>\n<code>/removeconnection connection_name</code>\n📝 <b>Example:</b>\n<code>/removeconnection My_First_Connection</code>",
+    "my_connections": {
+      "header": "<b>Your connections:</b>\n\n",
+      "item": "<b>{index} {name}</b>\n🔑 ID: <code>{connection_id}</code>\n📱 Connected devices: {active}/{max}\n🕐 Created: {created_at}"
+    }
+  }
+}

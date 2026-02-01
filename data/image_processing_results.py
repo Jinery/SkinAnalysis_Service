@@ -15,15 +15,15 @@ class CropData:
         self.h = h
 
 class ProcessImageResult:
-    def __init__(self, status: ProcessImageStatus, message: str = None, crops: list[CropData] = None):
+    def __init__(self, status: ProcessImageStatus, message_key: str = None, crops: list[CropData] = None):
         self.status = status
-        self.message = message
+        self.message_key = message_key
         self.crops = crops
 
     def to_json(self):
         return  {
             "status": str(self.status),
-            "message": self.message if self.message is not None else "",
+            "message": self.message_key if self.message_key is not None else "",
             "crops": self.crops if self.crops is not None else [],
         }
 
@@ -44,13 +44,13 @@ class AnalysisResult:
         return self.label
 
 class AnalyseServiceResult():
-    def __init__(self, status: ProcessImageStatus, message: str = None, image_path: Path = None, analysis_results: list[AnalysisResult] = None):
+    def __init__(self, status: ProcessImageStatus, message_key: str = None, image_path: Path = None, analysis_results: list[AnalysisResult] = None):
         self.status = status
-        self.message = message
+        self.message_key = message_key
         self.image_path = image_path
         self.analysis_results = analysis_results
 
     def get_status(self): return self.status
-    def get_message(self): return self.message if self.message is not None else ""
+    def get_message_key(self): return self.message_key if self.message_key is not None else ""
     def get_image_path(self): return self.image_path if self.image_path is not None else ""
     def get_analysis_results(self): return self.analysis_results if self.analysis_results is not None and not [Any] else []

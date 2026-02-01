@@ -24,14 +24,14 @@ class ImageProcessor:
         total_pixels = self.img.shape[0] * self.img.shape[1]
 
         if skin_pixels < (total_pixels * 0.01):
-            raise SkinNotFound("Кожа не обнаружена на фото.")
+            raise SkinNotFound("attentions.analysis.skin_not_found")
 
         crops = self.get_interestiong_crops()
 
         if not crops:
             return ProcessImageResult(
                 status=ProcessImageStatus.CLEANED,
-                message="Кожа чистая, подозрительных объектов нет."
+                message_key="success.analysis.cleaned"
             )
 
         return ProcessImageResult(

@@ -57,3 +57,6 @@ class JsonTranslator(BaseTranslator):
 
     def get_available_languages(self) -> list[str]:
         return list(self._cache.keys())
+
+
+translator = JsonTranslator(translations_path="locales")

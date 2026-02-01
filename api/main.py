@@ -1,10 +1,7 @@
 from fastapi import FastAPI, Header, File, UploadFile, Depends, HTTPException, BackgroundTasks
 from starlette.responses import FileResponse
-from starlette.staticfiles import StaticFiles
 from datetime import datetime
-import asyncio
 
-from api.dependencies import get_translator
 from data.enums import APIStatus, Platform
 from data.schemas import AnalysisResponse, AnalysisItemSchema, CropBoxSchema, TaskResponse, TaskStatus
 from database.database import DeviceRegisterResponse, DeviceRegisterRequest, Connection
@@ -13,6 +10,7 @@ from files.file_manager import file_manager
 from handler.auth_handler import notify_device_connection
 from service.analysis_service import AnalysisService
 from tasks.task_manager import task_manager
+from transflate.translator import translator
 
 app = FastAPI(
     title="SkinAnalysis API",
@@ -26,7 +24,6 @@ async def verify_token(
         device_uid: str = Header(..., alias="X-Device-ID"),
         lang: str = Header("en", alias="Accept-Language")
 ):
-    translator = get_translator()
     stats = await DatabaseWorker.get_connection_by_id(connection_id)
 
     if not stats:
@@ -60,7 +57,6 @@ async def analyze_image(
         connection: Connection = Depends(verify_token),
         lang: str = Header("en", alias="Accept-Language")
 ):
-    translator = get_translator()
     user_id = connection.user_id
 
     if not file.content_type.startswith('image/'):
@@ -105,7 +101,6 @@ async def get_task_status(
         connection: Connection = Depends(verify_token),
         lang: str = Header("en", alias="Accept-Language")
 ):
-    translator = get_translator()
     task = await task_manager.get_task(task_id)
     if not task:
         raise HTTPException(
@@ -132,7 +127,6 @@ async def get_task_result(
         connection: Connection = Depends(verify_token),
         lang: str = Header("en", alias="Accept-Language")
 ):
-    translator = get_translator()
     task = await task_manager.get_task(task_id)
     if not task:
         raise HTTPException(
@@ -165,7 +159,6 @@ async def get_result_image(
         connection: Connection = Depends(verify_token),
         lang: str = Header("en", alias="Accept-Language")
 ):
-    translator = get_translator()
     file_path = file_manager.get_user_folder(user_id) / image_name
     if not file_path.exists():
         raise HTTPException(
@@ -182,7 +175,6 @@ async def process_image_task(
         filename: str,
         lang: str = "en"
 ):
-    translator = get_translator()
     try:
         await task_manager.update_task(
             task_id=task_id,
@@ -208,7 +200,7 @@ async def process_image_task(
 
         analysis_response = AnalysisResponse(
             status=result.get_status(),
-            message=result.get_message(),
+            message=result.get_message_key(),
             image_url=f"/result/{user_id}/{result.get_image_path().name}" if result.get_image_path() else None,
             analysis_results=[
                 AnalysisItemSchema(
@@ -252,7 +244,6 @@ async def register_device(
         connection: Connection = Depends(verify_token),
         lang: str = Header("en", alias="Accept-Language")
 ):
-    translator = get_translator()
     try:
         user_id = connection.user_id
         device, status = await DatabaseWorker.add_device(connection_id, device_info.model_dump())
@@ -305,7 +296,6 @@ async def check(
         connection: Connection = Depends(verify_token),
         lang: str = Header("en", alias="Accept-Language")
 ):
-    translator = get_translator()
     return {
         "status": "success",
         "message": translator.translate("success.auth.secure_endpoint_available", Platform.API, lang)
@@ -314,7 +304,6 @@ async def check(
 
 @app.get("/")
 async def root(lang: str = Header("en", alias="Accept-Language")):
-    translator = get_translator()
     message = translator.translate(
         "success.api_running",
         Platform.API,

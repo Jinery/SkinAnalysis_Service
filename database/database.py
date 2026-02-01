@@ -18,6 +18,7 @@ AsyncSessionLocal = async_sessionmaker(autocommit=False, autoflush=False, bind=e
 class User(Base):
     __tablename__ = "users"
     id = Column(BigInteger, primary_key=True)
+    language = Column(String(2), nullable=False, default="en")
     connections = relationship("Connection", back_populates="user")
 
 

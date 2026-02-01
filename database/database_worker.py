@@ -1,11 +1,12 @@
 from typing import Optional, Tuple
 
-from sqlalchemy import select, update, and_, func
+from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
 from data.enums import APIStatus
-from database.database import get_db, Connection, Device
+from database.database import get_db, Connection, Device, User
+from transflate.translator import translator
 
 
 class DatabaseWorker:
@@ -200,6 +201,66 @@ class DatabaseWorker:
                 )
                 result = await db.execute(stmt)
                 return result.scalar_one_or_none()
+            except SQLAlchemyError as sqlex:
+                await db.rollback()
+                raise sqlex
+
+    @staticmethod
+    async def get_or_update_user(user_id: int, lang_from_tg: str):
+        lang = lang_from_tg[:2].lower() if lang_from_tg else "en"
+        if lang not in translator.get_available_languages():
+            lang = "en"
+
+        async for db in get_db():
+            try:
+                stmt = select(User).where(
+                    User.id == user_id,
+                )
+                result = await db.execute(stmt)
+                user = result.scalar_one_or_none()
+                if not user:
+                    user = User(
+                        id=user_id,
+                        language=lang,
+                    )
+                    db.add(user)
+                    await db.commit()
+                elif user.language != lang:
+                    user.language = lang
+                    await db.commit()
+
+                return user
+            except SQLAlchemyError as sqlex:
+                await db.rollback()
+                raise sqlex
+
+    @staticmethod
+    async def get_language_by_user_id(user_id: int):
+        async for db in get_db():
+            try:
+                stmt = select(User).where(
+                    User.id == user_id,
+                )
+                result = await db.execute(stmt)
+                user = result.scalar_one_or_none()
+                return user.language if user else "en"
+            except SQLAlchemyError as sqlex:
+                await db.rollback()
+                raise sqlex
+
+    @staticmethod
+    async def get_language_by_connection_id(connection_id: str):
+        async for db in get_db():
+            try:
+                stmt = select(Connection).where(
+                    Connection.connection_id == connection_id,
+                ).options(
+                    selectinload(Connection.user)
+                )
+                result = await db.execute(stmt)
+                connection = result.scalar_one_or_none()
+
+                return connection.user.lang if connection.user else "en"
             except SQLAlchemyError as sqlex:
                 await db.rollback()
                 raise sqlex

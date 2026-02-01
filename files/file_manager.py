@@ -46,7 +46,7 @@ class FileManager:
                 file.unlink()
 
         try:
-            shutil.rmtree(self.get_crops_directory(user_id))
+            shutil.rmtree(self.get_crops_directory(user_id), ignore_errors=True)
         except FileNotFoundError:
             pass
 

@@ -1,8 +1,10 @@
 from telegram import Update
 from telegram.ext import CallbackContext
 
+from data.enums import Platform
 from handler.auth_handler import handle_disconnect_device, handle_confirm_disconnect, handle_cancel_disconnect
 from storage.callback_storage import callback_storage
+from transflate.translator import translator
 
 
 async def handle_callback(update: Update, context: CallbackContext):
@@ -14,7 +16,9 @@ async def handle_callback(update: Update, context: CallbackContext):
     if data.startswith(callback_storage.get_prefix()):
         stored_data = await callback_storage.get(data)
         if not stored_data:
-            await query.edit_message_text("Ссылка устарела")
+            await query.edit_message_text(
+                translator.translate("callbacks.stored_data.link_expired", Platform.TELEGRAM, query.from_user.language_code)
+            )
             return
         data = stored_data
         print(data)
@@ -28,6 +32,6 @@ async def handle_callback(update: Update, context: CallbackContext):
         elif action == "confirm_disconnect":
             await handle_confirm_disconnect(query, patrs[1:])
         elif action == "cancel_disconnect":
-            await handle_cancel_disconnect(query)
+            await handle_cancel_disconnect(query, query.from_user.language_code)
     except Exception as e:
         print(e)
