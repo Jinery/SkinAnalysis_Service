@@ -12,7 +12,7 @@ class AnalysisService:
     async def analyze(user_id: int, photo_path: Path | str) -> AnalyseServiceResult:
         if isinstance(photo_path, str): photo_path = Path(photo_path)
 
-        processor = ImageProcessor(photo_path, user_id)
+        processor = ImageProcessor(str(photo_path), user_id)
 
         try:
             process_result = processor.process_image()

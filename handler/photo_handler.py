@@ -45,4 +45,4 @@ async def handle_user_photo(update: Update, context: CallbackContext):
         elif result.get_status() == ProcessImageStatus.CLEANED:
             await check_message.edit_text("✅ " + translator.translate(result.get_message_key(), Platform.TELEGRAM, lang))
         else:
-            await check_message.edit_text("❌ " + + translator.translate(result.get_message_key(), Platform.TELEGRAM, lang))
+            await check_message.edit_text("❌ " + translator.translate(result.get_message_key(), Platform.TELEGRAM, lang))

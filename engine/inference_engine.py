@@ -9,7 +9,7 @@ from files.file_manager import file_manager
 
 class InferenceEngine:
     def __init__(self):
-        self.model: tf.keras.Model = tf.keras.models.load_model(str(file_manager.get_base_model_path()))
+        self.model: tf.keras.Model = tf.keras.models.load_model(str(file_manager.get_classification_model_path()))
         self.class_names = ["healthy", "nevus", "problem"]
 
     def predict_crop(self, crop_path: Path):

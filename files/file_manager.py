@@ -8,7 +8,8 @@ class FileManager:
         self.temp_path = self.base_path / "temp"
         self.models_path = self.base_path / "models"
         self.users_files_path = self.base_path / "users_files"
-        self.model_name = "SkinAnalysis_AI.keras"
+        self.classification_model_name = "SkinAnalysis_AI.keras"
+        self.detector_model_name = "SkinAnalysisDetector"
         self.database_name = "skin_analysis_BotAndAPI_data.db"
         self.setup_directories()
 
@@ -58,10 +59,16 @@ class FileManager:
         crops_path.mkdir(parents=True, exist_ok=True)
         return crops_path
 
-    def get_base_model_path(self) -> Path:
-        model_path = self.models_path / self.model_name
+    def get_classification_model_path(self) -> Path:
+        model_path = self.models_path / self.classification_model_name
         if not model_path.exists():
             raise FileNotFoundError("Model not found")
+        return model_path
+
+    def get_detector_model_path(self) -> Path:
+        model_path = self.models_path / self.detector_model_name
+        if not model_path.exists():
+            raise FileNotFoundError("Detector not found")
         return model_path
 
     def get_database_path(self) -> Path:
